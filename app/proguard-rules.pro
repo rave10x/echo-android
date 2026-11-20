@@ -1,0 +1,15 @@
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keep class org.mozilla.javascript.** { *; }
+-dontwarn org.mozilla.javascript.**
+-dontwarn javax.script.**
+-dontwarn java.beans.**
+-keepattributes *Annotation*, InnerClasses
+-keep,includedescriptorclasses class app.echo.**$$serializer { *; }
+-keepclassmembers class app.echo.** { *** Companion; }
+-keepclasseswithmembers class app.echo.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep class androidx.media3.** { *; }
+-dontwarn org.jsoup.**
+-dontwarn org.schabi.newpipe.extractor.**
+-dontwarn com.google.re2j.**
+-dontwarn javax.annotation.**
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }

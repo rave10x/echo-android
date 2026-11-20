@@ -32,6 +32,30 @@ import kotlinx.serialization.json.Json
     val lastQueue: List<Track> = emptyList(),
     val lastIndex: Int = 0,
     val lastPos: Long = 0,
+    /** YouTube songs saved on this phone (their audio lives in the offline cache). */
+    val offline: List<Track> = emptyList(),
+    val autoSave: Boolean = true,
+    val cacheMb: Int = 1024,
+    val theme: String = "system",
+    val eqOn: Boolean = false,
+    val eqPreset: String = "Flat",
+    val eqLevels: List<Int> = emptyList(),
+    val bass: Int = 0,
+    val fadeSec: Int = 0,
+    val wifiOnly: Boolean = true,
+    val lyricNotif: Boolean = false,
+    val edits: Map<String, TrackEdit> = emptyMap(),
+    val listen: List<Listen> = emptyList(),
+)
+
+/** User-edited song info; applied on top of what the file says. cover is a file:// path. */
+@Serializable data class TrackEdit(val title: String? = null, val artist: String? = null, val album: String? = null, val cover: String? = null)
+/** Listening time per day and song, for the stats screen. */
+@Serializable data class Listen(val day: String, val id: String, val title: String, val artist: String, val ms: Long)
+
+fun Track.edited(e: TrackEdit?): Track = if (e == null) this else copy(
+    title = e.title?.takeIf { it.isNotBlank() } ?: title, artist = e.artist?.takeIf { it.isNotBlank() } ?: artist,
+    album = e.album?.takeIf { it.isNotBlank() } ?: album, art = e.cover ?: art,
 )
 
 const val LIKED = "liked"

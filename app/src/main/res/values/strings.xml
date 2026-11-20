@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_mini_desc">Play, pause and skip with one tap. Follows light and dark mode.</string>
+    <string name="widget_player_desc">Cover, song title and controls. Follows light and dark mode.</string>
+</resources>

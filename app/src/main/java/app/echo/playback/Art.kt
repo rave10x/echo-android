@@ -23,7 +23,8 @@ object ArtLoader {
         cache.get("$uri@$px")?.let { return it }
         val u = Uri.parse(uri)
         val bmp = runCatching {
-            if (Build.VERSION.SDK_INT >= 29) ctx.contentResolver.loadThumbnail(u, Size(px, px), null)
+            if (u.scheme == "file") BitmapFactory.decodeFile(u.path)
+            else if (Build.VERSION.SDK_INT >= 29) ctx.contentResolver.loadThumbnail(u, Size(px, px), null)
             else MediaMetadataRetriever().use { r -> r.setDataSource(ctx, u); r.embeddedPicture?.let { BitmapFactory.decodeByteArray(it, 0, it.size) } }
         }.getOrNull()
         if (bmp != null) cache.put("$uri@$px", bmp)

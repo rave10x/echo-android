@@ -69,6 +69,9 @@ fun TrackRow(
     extra: List<Pair<String, () -> Unit>> = emptyList(), wide: Boolean = false, showIndex: Int? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val savedIds by vm.offline.saved.collectAsState(); val working by vm.offline.working.collectAsState()
+    val isSaved = t.id in savedIds; val pct = working[t.id]
     val liked = vm.store.state.collectAsState().value.playlists.firstOrNull { it.id == LIKED }?.tracks?.any { it.id == t.id } == true
     Row(modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         showIndex?.let { Text("$it", Modifier.width(28.dp), color = Dim, fontSize = 13.sp) }
@@ -82,7 +85,12 @@ fun TrackRow(
         Column(Modifier.weight(1f)) {
             Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold, color = if (current) Accent else MaterialTheme.colorScheme.onSurface)
             val sub = if (t.video && t.artist.isBlank()) fmt(t.durMs) else listOf(t.artist, if (t.durMs > 0) fmt(t.durMs) else "").filter { it.isNotBlank() }.joinToString(" · ")
-            if (sub.isNotBlank()) Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = Dim)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isSaved) Icon(Icons.Default.DownloadForOffline, "Saved offline", Modifier.size(15.dp).padding(end = 3.dp), tint = Color(0xFF4CD08A))
+                else if (pct != null) CircularProgressIndicator(progress = { pct / 100f }, Modifier.size(12.dp).padding(end = 0.dp), strokeWidth = 1.5.dp, color = Accent)
+                if (pct != null) Spacer(Modifier.width(4.dp))
+                if (sub.isNotBlank()) Text(sub, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp, color = Dim)
+            }
         }
         Box {
             IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More", tint = Dim) }
@@ -92,6 +100,12 @@ fun TrackRow(
                 DropdownMenuItem({ Text("Add to playlist") }, { menu = false; vm.addTarget = listOf(t) }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null) })
                 DropdownMenuItem({ Text(if (liked) "Remove from liked" else "Like") }, { menu = false; vm.store.toggleLike(t) },
                     leadingIcon = { Icon(if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null) })
+                if (t.id.startsWith("a:")) DropdownMenuItem({ Text("Edit info & cover") }, { menu = false; vm.editTarget = t }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                DropdownMenuItem({ Text("Share") }, { menu = false; shareTrack(ctx, t) }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                if (t.yt) {
+                    if (isSaved) DropdownMenuItem({ Text("Remove download") }, { menu = false; vm.offline.remove(t.id); vm.toast("Removed from offline") }, leadingIcon = { Icon(Icons.Default.DeleteOutline, null) })
+                    else if (pct == null) DropdownMenuItem({ Text("Download for offline") }, { menu = false; vm.offline.save(t, true); vm.toast("Downloading…") }, leadingIcon = { Icon(Icons.Default.Download, null) })
+                }
                 extra.forEach { (l, f) -> DropdownMenuItem({ Text(l) }, { menu = false; f() }) }
             }
         }
@@ -165,4 +179,12 @@ fun MiniPlayer(vm: EchoVM, onOpen: () -> Unit) {
         }
         LinearProgressIndicator(progress = { if (ps.dur > 0) (ps.pos.toFloat() / ps.dur).coerceIn(0f, 1f) else 0f }, Modifier.fillMaxWidth().height(2.dp), color = Accent, trackColor = Color.Transparent)
     }
+}
+
+/** Share a song: a YouTube link for online songs, the audio file for songs on this phone. */
+fun shareTrack(ctx: android.content.Context, t: Track) {
+    val i = android.content.Intent(android.content.Intent.ACTION_SEND)
+    if (t.yt) i.setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, "${t.title} – https://youtu.be/${t.ytId}")
+    else i.setType("audio/*").putExtra(android.content.Intent.EXTRA_STREAM, android.net.Uri.parse(t.uri)).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    ctx.startActivity(android.content.Intent.createChooser(i, "Share song").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
 }

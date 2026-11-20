@@ -85,7 +85,13 @@ fun NowPlaying(vm: EchoVM, onClose: () -> Unit) {
                 IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                 DropdownMenu(menu, { menu = false }) {
                     DropdownMenuItem({ Text("Add to playlist") }, { menu = false; vm.addTarget = listOf(t) }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null) })
+                    if (t.yt) { val on = t.id in vm.offline.saved.value
+                        DropdownMenuItem({ Text(if (on) "Remove download" else "Download for offline") }, { menu = false; if (on) vm.offline.remove(t.id) else { vm.offline.save(t, true); vm.toast("Downloading…") } },
+                            leadingIcon = { Icon(if (on) Icons.Default.DeleteOutline else Icons.Default.Download, null) }) }
                     DropdownMenuItem({ Text("Sleep timer") }, { menu = false; showSleep = true }, leadingIcon = { Icon(Icons.Default.Bedtime, null) })
+                    DropdownMenuItem({ Text("Equalizer") }, { menu = false; vm.showEq = true }, leadingIcon = { Icon(Icons.Default.Tune, null) })
+                    DropdownMenuItem({ Text("Share song") }, { menu = false; shareTrack(ctx, t) }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                    if (lyricsOn) DropdownMenuItem({ Text("Share lyric card") }, { menu = false; shareLyricCard(ctx, t, ps.pos, tint) }, leadingIcon = { Icon(Icons.Default.Image, null) })
                     DropdownMenuItem({ Text("Playback speed") }, { menu = false; showSpeed = true }, leadingIcon = { Icon(Icons.Default.Speed, null) })
                     if (t.yt) DropdownMenuItem({ Text(if (ps.ytVideo) "Switch to audio only" else "Show video") }, { menu = false; ps.changeYtVideo(!ps.ytVideo) }, leadingIcon = { Icon(if (ps.ytVideo) Icons.Default.Headphones else Icons.Default.Videocam, null) })
                 }
@@ -137,7 +143,11 @@ fun NowPlaying(vm: EchoVM, onClose: () -> Unit) {
     }
 
     if (showQueue) ModalBottomSheet({ showQueue = false }, containerColor = Surf) {
-        Text("Up next · ${ps.queue.size}", Modifier.padding(horizontal = 20.dp, vertical = 4.dp), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Up next · ${ps.queue.size}", Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            TextButton({ vm.addTarget = ps.queue }) { Text("Save as playlist") }
+            TextButton({ ps.clear(); showQueue = false; onClose() }) { Text("Clear") }
+        }
         val ls = rememberLazyListState()
         LaunchedEffect(Unit) { ls.scrollToItem((ps.index - 1).coerceAtLeast(0)) }
         LazyColumn(Modifier.heightIn(max = 520.dp), ls, contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -149,7 +159,8 @@ fun NowPlaying(vm: EchoVM, onClose: () -> Unit) {
                         Text(q.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Dim, fontSize = 12.sp)
                     }
                     if (i != ps.index) IconButton({ ps.removeAt(i) }) { Icon(Icons.Default.Close, "Remove", tint = Dim) }
-                    if (i > 0 && i != ps.index) IconButton({ ps.moveQueue(i, i - 1) }) { Icon(Icons.Default.KeyboardArrowUp, "Move up", tint = Dim) }
+                    if (i > 0) IconButton({ ps.moveQueue(i, i - 1) }) { Icon(Icons.Default.KeyboardArrowUp, "Move up", tint = Dim) }
+                    if (i < ps.queue.lastIndex) IconButton({ ps.moveQueue(i, i + 1) }) { Icon(Icons.Default.KeyboardArrowDown, "Move down", tint = Dim) }
                 }
             }
         }

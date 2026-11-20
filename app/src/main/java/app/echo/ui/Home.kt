@@ -28,6 +28,7 @@ import java.util.Calendar
 fun HomeTab(vm: EchoVM, open: () -> Unit, goSearch: () -> Unit) {
     val seeds by vm.home.shelves.collectAsState(); val personal by vm.home.personal.collectAsState(); val loading by vm.home.loading.collectAsState()
     val data by vm.store.state.collectAsState(); val ps = vm.ps
+    val savedIds by vm.offline.saved.collectAsState()
     val hello = remember { when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) { in 5..11 -> "Good morning"; in 12..16 -> "Good afternoon"; in 17..21 -> "Good evening"; else -> "Late night vibes" } }
     // refresh the "because you played" shelves when the last played song changes
     LaunchedEffect(data.recent.firstOrNull()?.id) { if (data.recent.isNotEmpty()) vm.home.buildPersonal(vm.viewModelScopeRef()) }
@@ -39,6 +40,13 @@ fun HomeTab(vm: EchoVM, open: () -> Unit, goSearch: () -> Unit) {
                 if (loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                 IconButton({ vm.refreshHome() }) { Icon(Icons.Default.Refresh, "Refresh") }
                 IconButton(goSearch) { Icon(Icons.Default.Search, "Search") }
+            }
+        }
+        val offlineTracks = data.offline.filter { it.id in savedIds }
+        if (offlineTracks.isNotEmpty()) item {
+            ShelfTitle("Saved for offline", { ps.play(offlineTracks, 0); open() })
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(offlineTracks.take(20), key = { i, t -> "o${t.id}#$i" }) { i, t -> SongCard(t, ps.track?.id == t.id) { ps.play(offlineTracks, i); open() } }
             }
         }
         if (data.recent.isNotEmpty()) item {

@@ -56,6 +56,7 @@ fun LibraryTab(vm: EchoVM, nav: NavHostController, open: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Header("Library") {
             if (vm.loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+            IconButton({ nav.navigate("stats") }) { Icon(Icons.Default.BarChart, "Listening stats") }
             IconButton({ nav.navigate("settings") }) { Icon(Icons.Default.Settings, "Settings") }
         }
         SearchBox(q, { q = it }, "Search your music")
@@ -114,6 +115,7 @@ private fun GroupRow(title: String, sub: String, cover: Track, round: Boolean = 
 @Composable
 fun TrackListScreen(
     vm: EchoVM, title: String, subtitle: String, tracks: List<Track>, onBack: () -> Unit, open: () -> Unit,
+    header: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}, rowExtra: (Int, Track) -> List<Pair<String, () -> Unit>> = { _, _ -> emptyList() }, empty: String = "Nothing here yet.",
 ) {
     val ps = vm.ps
@@ -126,8 +128,9 @@ fun TrackListScreen(
             Text(title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(subtitle, color = Dim, fontSize = 13.sp)
         }
-        if (tracks.isEmpty()) Text(empty, color = Dim, modifier = Modifier.padding(24.dp))
+        if (tracks.isEmpty()) { header?.invoke(); Text(empty, color = Dim, modifier = Modifier.padding(24.dp)) }
         else LazyColumn(Modifier.weight(1f)) {
+            if (header != null) item { header() }
             item { SectionButtons({ ps.play(tracks); open() }, { ps.play(tracks, shuffleOn = true); open() }) }
             itemsIndexed(tracks, key = { i, t -> "${t.id}#$i" }) { i, t -> TrackRow(t, ps.track?.id == t.id, ps.playing, vm, onClick = { ps.play(tracks, i); open() }, extra = rowExtra(i, t), wide = t.video) }
         }
@@ -146,15 +149,19 @@ fun GroupScreen(vm: EchoVM, name: String, album: Boolean, onBack: () -> Unit, op
 
 @Composable
 fun PlaylistsTab(vm: EchoVM, nav: NavHostController) {
-    val data by vm.store.state.collectAsState()
+    val data by vm.store.state.collectAsState(); val saved by vm.offline.saved.collectAsState()
     var creating by remember { mutableStateOf(false) }; var name by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize()) {
         Header("Playlists") { IconButton({ creating = true }) { Icon(Icons.Default.Add, "New playlist") } }
         LazyColumn(Modifier.fillMaxSize()) {
-            item { SmartRow(Icons.Default.History, "Recently played", "${data.recent.size} songs") { nav.navigate("playlist/recent") } }
-            item { SmartRow(Icons.Default.Whatshot, "Most played", "${data.plays.size} songs") { nav.navigate("playlist/top") } }
+            item { val n = data.offline.count { it.id in saved }; SmartRow(Icons.Default.DownloadForOffline, "Offline songs", "$n ${if (n == 1) "song" else "songs"} saved on this phone") { nav.navigate("playlist/offline") } }
+            item { SmartRow(Icons.Default.NewReleases, "Added this month", "Songs new on this phone") { nav.navigate("playlist/new") } }
+            item { SmartRow(Icons.Default.VisibilityOff, "Never played", "Songs you have not played yet") { nav.navigate("playlist/never") } }
+            item { SmartRow(Icons.Default.Timelapse, "Long songs", "6 minutes or more") { nav.navigate("playlist/long") } }
+            item { SmartRow(Icons.Default.History, "Recently played", cnt(data.recent.size)) { nav.navigate("playlist/recent") } }
+            item { SmartRow(Icons.Default.Whatshot, "Most played", cnt(data.plays.size)) { nav.navigate("playlist/top") } }
             items(data.playlists, key = { it.id }) { p ->
-                SmartRow(if (p.id == LIKED) Icons.Default.Favorite else Icons.Default.QueueMusic, p.name, "${p.tracks.size} songs", cover = p.tracks.firstOrNull()) { nav.navigate("playlist/${p.id}") }
+                SmartRow(if (p.id == LIKED) Icons.Default.Favorite else Icons.Default.QueueMusic, p.name, cnt(p.tracks.size), cover = p.tracks.firstOrNull()) { nav.navigate("playlist/${p.id}") }
             }
         }
     }
@@ -180,12 +187,26 @@ fun PlaylistScreen(vm: EchoVM, id: String, onBack: () -> Unit, open: () -> Unit)
     val data by vm.store.state.collectAsState()
     val songs by vm.songs.collectAsState()
     val real = data.playlists.firstOrNull { it.id == id }
-    val tracks = when (id) { "recent" -> data.recent; "top" -> (data.plays.entries.sortedByDescending { it.value }.mapNotNull { (k, _) -> songs.firstOrNull { it.id == k } ?: data.recent.firstOrNull { it.id == k } ?: data.playlists.flatMap { it.tracks }.firstOrNull { it.id == k } }).take(100); else -> real?.tracks.orEmpty() }
-    val title = when (id) { "recent" -> "Recently played"; "top" -> "Most played"; else -> real?.name ?: "Playlist" }
+    val savedIds by vm.offline.saved.collectAsState()
+    val day = 86400L
+    val tracks = when (id) { "new" -> songs.filter { it.added > System.currentTimeMillis() / 1000 - 30 * day }.sortedByDescending { it.added }; "never" -> songs.filter { (data.plays[it.id] ?: 0) == 0 }
+        "long" -> songs.filter { it.durMs >= 6 * 60_000 }.sortedByDescending { it.durMs }; "offline" -> data.offline.filter { it.id in savedIds }; "recent" -> data.recent; "top" -> (data.plays.entries.sortedByDescending { it.value }.mapNotNull { (k, _) -> songs.firstOrNull { it.id == k } ?: data.recent.firstOrNull { it.id == k } ?: data.playlists.flatMap { it.tracks }.firstOrNull { it.id == k } }).take(100); else -> real?.tracks.orEmpty() }
+    val title = when (id) { "new" -> "Added this month"; "never" -> "Never played"; "long" -> "Long songs"; "offline" -> "Offline songs"; "recent" -> "Recently played"; "top" -> "Most played"; else -> real?.name ?: "Playlist" }
     var menu by remember { mutableStateOf(false) }; var rename by remember { mutableStateOf(false) }; var del by remember { mutableStateOf(false) }; var nm by remember(title) { mutableStateOf(title) }
-    TrackListScreen(vm, title, "${tracks.size} songs", tracks, onBack, open,
+    val active by vm.offline.active.collectAsState(); val working by vm.offline.working.collectAsState()
+    TrackListScreen(vm, title, cnt(tracks.size), tracks, onBack, open,
+        header = if (id == "offline" && active.isNotEmpty()) ({
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("Downloading (${active.size})", fontWeight = FontWeight.Bold)
+                active.forEach { t -> Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp); LinearProgressIndicator(progress = { (working[t.id] ?: 0) / 100f }, Modifier.fillMaxWidth().padding(top = 4.dp), color = Accent) }
+                    IconButton({ vm.offline.cancel(t.id) }) { Icon(Icons.Default.Close, "Cancel") }
+                } }
+            }
+        }) else null,
         actions = {
             IconButton({ vm.ps.enqueue(tracks); vm.toast("Added to queue") }, enabled = tracks.isNotEmpty()) { Icon(Icons.Default.QueueMusic, "Add to queue") }
+            if (id != "offline" && tracks.any { it.yt }) IconButton({ tracks.filter { it.yt }.forEach { vm.offline.save(it, true) }; vm.toast("Downloading ${tracks.count { it.yt }} songs…") }) { Icon(Icons.Default.Download, "Download all") }
             if (real != null && id != LIKED) Box {
                 IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                 DropdownMenu(menu, { menu = false }) {
@@ -194,11 +215,11 @@ fun PlaylistScreen(vm: EchoVM, id: String, onBack: () -> Unit, open: () -> Unit)
                 }
             }
         },
-        rowExtra = { i, t -> if (real == null) emptyList() else buildList {
+        rowExtra = { i, t -> if (id == "offline") emptyList() else if (real == null) emptyList() else buildList {
             if (i > 0) add("Move up" to { vm.store.move(id, i, i - 1) })
             if (i < tracks.lastIndex) add("Move down" to { vm.store.move(id, i, i + 1) })
             add("Remove from playlist" to { vm.store.remove(id, t.id) })
-        } }, empty = if (id == LIKED) "Tap the heart on a song to keep it here." else "No songs yet. Use “Add to playlist” on any song.")
+        } }, empty = if (id == "offline") "Songs you listen to online are saved here automatically, so they play without internet." else if (id == LIKED) "Tap the heart on a song to keep it here." else "No songs yet. Use “Add to playlist” on any song.")
     if (rename) AlertDialog({ rename = false }, title = { Text("Rename playlist") }, text = { OutlinedTextField(nm, { nm = it }, singleLine = true) },
         confirmButton = { TextButton({ vm.store.rename(id, nm); rename = false }) { Text("Save") } }, dismissButton = { TextButton({ rename = false }) { Text("Cancel") } })
     if (del) AlertDialog({ del = false }, title = { Text("Delete “$title”?") }, text = { Text("The songs themselves are not deleted.") },
@@ -219,3 +240,5 @@ fun VideosTab(vm: EchoVM, open: () -> Unit) {
         }
     }
 }
+
+private fun cnt(n: Int) = if (n == 1) "1 song" else "$n songs"

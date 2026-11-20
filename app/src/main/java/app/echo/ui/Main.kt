@@ -43,14 +43,19 @@ fun EchoRoot(vm: EchoVM, showNow: Boolean, setNow: (Boolean) -> Unit) {
             composable("playlist/{id}") { e -> PlaylistScreen(vm, e.arguments?.getString("id").orEmpty(), { nav.popBackStack() }, open) }
             composable("album/{name}") { e -> GroupScreen(vm, Uri.decode(e.arguments?.getString("name").orEmpty()), true, { nav.popBackStack() }, open) }
             composable("artist/{name}") { e -> GroupScreen(vm, Uri.decode(e.arguments?.getString("name").orEmpty()), false, { nav.popBackStack() }, open) }
+            composable("stats") { StatsScreen(vm, { nav.popBackStack() }, open) }
             composable("settings") { SettingsScreen(vm) { nav.popBackStack() } }
         }
+        val outerDark = LocalPalette.current.dark; val act = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+        LaunchedEffect(showNow, outerDark) { applyBars(act, if (showNow) true else outerDark) }
         AnimatedVisibility(showNow, enter = slideInVertically(tween(320)) { it } + fadeIn(), exit = slideOutVertically(tween(280)) { it } + fadeOut()) {
-            NowPlaying(vm) { setNow(false) }
+            EchoTheme("dark", bars = false) { Surface(Modifier.fillMaxSize(), color = Bg, contentColor = MaterialTheme.colorScheme.onBackground) { NowPlaying(vm) { setNow(false) } } }
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 150.dp))
     } }
     BackHandler(showNow) { setNow(false) }
+    vm.editTarget?.let { EditSongDialog(vm, it) { vm.editTarget = null } }
+    if (vm.showEq) EqualizerSheet(vm) { vm.showEq = false }
     vm.addTarget?.let { AddToPlaylistSheet(vm, it) { vm.addTarget = null } }
 }
 

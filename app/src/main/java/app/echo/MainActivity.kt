@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,7 +30,7 @@ class MainActivity : ComponentActivity(), FullscreenHost {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         handle(intent)
-        setContent { EchoTheme { CompositionLocalProvider(LocalFullscreen provides this@MainActivity) { EchoRoot(vm, openNow) { openNow = it } } } }
+        setContent { val d by vm.store.state.collectAsState(); EchoTheme(d.theme) { CompositionLocalProvider(LocalFullscreen provides this@MainActivity) { EchoRoot(vm, openNow) { openNow = it } } } }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
 

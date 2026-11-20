@@ -57,7 +57,10 @@ fun OnlineTab(vm: EchoVM, open: () -> Unit) {
             LazyColumn(Modifier.weight(1f)) {
                 item {
                     SectionButtons({ ps.play(results); open() }, { ps.play(results, shuffleOn = true); open() })
-                    TextButton({ vm.addTarget = results }, Modifier.padding(horizontal = 8.dp)) { Icon(Icons.Default.PlaylistAdd, null); Spacer(Modifier.width(6.dp)); Text("Save all to a playlist") }
+                    Row {
+                        TextButton({ vm.addTarget = results }, Modifier.padding(horizontal = 8.dp)) { Icon(Icons.Default.PlaylistAdd, null); Spacer(Modifier.width(6.dp)); Text("Add all to a playlist") }
+                        TextButton({ results.forEach { vm.offline.save(it, true) }; vm.toast("Downloading ${results.size} songs…") }) { Icon(Icons.Default.Download, null); Spacer(Modifier.width(6.dp)); Text("Download all") }
+                    }
                 }
                 itemsIndexed(results, key = { i, t -> "${t.id}#$i" }) { i, t -> TrackRow(t, ps.track?.id == t.id, ps.playing, vm, onClick = { ps.play(results, i); open() }) }
             }
